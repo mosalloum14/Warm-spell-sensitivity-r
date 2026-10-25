@@ -1,22 +1,16 @@
-# Fixed-reference warm spells: an extension of the MSc methodology.
-# Full-year local anomalies, not standard WSDI or a health-risk threshold.
-# OLS/HAC inference is approximate, conditional on this product and fixed thresholds.
-# Internal robustness checks are not validation against independent observations.
-# First run only: install.packages(c("jsonlite", "ggplot2"))
 library(ggplot2)
 options(timeout = max(120, getOption("timeout")))
 
-# 1. Settings: study rectangle and six definitions retained from the MSc.
+# 1. Settings
 area <- c(xmin = 36, ymin = 32.5, xmax = 42, ymax = 37)
 years <- 1981:2025
-ref_years <- 1991:2020
+ref_years <- 1986:2005
 percentiles <- c(P90 = 0.90, P95 = 0.95)
 min_days <- c(2L, 3L, 4L)
 half_window <- 2L
 confidence_level <- 0.95
-alpha <- 0.05                          # FDR decision threshold
-min_years <- 15L                       # Pragmatic guard against sparse annual samples;
-                                      # not a universal guarantee of HAC adequacy.
+alpha <- 0.05
+min_years <- 15L
 metrics <- c("n_events", "event_days", "mean_duration")
 bind <- function(x) do.call(rbind, x)
 expected_dates <- seq(as.Date(paste0(min(years), "-01-01")),
@@ -30,12 +24,11 @@ stopifnot(length(years) >= 3, all(diff(years) == 1),
           half_window == as.integer(half_window), half_window < 183,
           min_years >= 3, min_years == as.integer(min_years),
           confidence_level > 0, confidence_level < 1, alpha > 0, alpha < 1)
-# Prespecified annual-lag rule; half/double bandwidths are sensitivity checks.
 lag_base <- min(length(years) - 2L, floor(4 * (length(years) / 100)^(2 / 9)))
 lag_checks <- sort(unique(pmin(length(years) - 2L,
                               round(lag_base * c(0.5, 1, 2)))))
 
-# 2. Prefer the verified bundled snapshot, then cache, then download from the API.
+# 2. Data
 cache_dir <- file.path("power_cache", paste(c("T2M_MAX", unname(area),
   paste0(min(years), "0101"), paste0(max(years), "1231"), "UTC"), collapse = "_"))
 dir.create(cache_dir, recursive = TRUE, showWarnings = FALSE)
@@ -77,11 +70,11 @@ daily <- bind(lapply(years, function(y) { message("Reading ", y); read_year(y) }
 stopifnot(!anyNA(daily), all(is.finite(daily$tmax)))
 cell_series <- split(daily, daily[c("lon", "lat")], drop = TRUE)
 
-# 3. Calendar-day quantiles: fixed reference, circular five-day window, type 8.
+# 3. Thresholds
 calendar <- format(seq(as.Date("2001-01-01"), by = "day", length.out = 365), "%m-%d")
-daily_thresholds <- function(d) {
+daily_thresholds <- function(d, reference = ref_years) {
   md <- format(d$date, "%m-%d")
-  ref <- as.integer(format(d$date, "%Y")) %in% ref_years & md != "02-29"
+  ref <- as.integer(format(d$date, "%Y")) %in% reference & md != "02-29"
   by_day <- split(d$tmax[ref], factor(md[ref], levels = calendar))
   q <- bind(lapply(seq_along(calendar), function(i) {
     k <- (i - 1L + seq.int(-half_window, half_window)) %% 365L + 1L
@@ -92,7 +85,7 @@ daily_thresholds <- function(d) {
   q[md, , drop = FALSE]
 }
 
-# 4. Detect complete runs before grouping years; do not split at New Year.
+# 4. Events
 find_events <- function(hot) {
   r <- rle(hot)
   last <- cumsum(r$lengths)
@@ -110,18 +103,17 @@ annual_metrics <- function(ev, date, min_d) {
     n_events = as.vector(table(onset)),
     event_days = tabulate(match(yy[indices(e)], years), nbins = length(years)),
     mean_duration = as.vector(tapply(e$days, onset, mean)))
-  # Count/full duration belong to onset year; event_days belong to actual day-year.
-  # Conservatively exclude years affected by any record-edge run, even a short one.
   out[years %in% yy[ev$first[ev$cut]], c("n_events", "mean_duration")] <- NA
   out$event_days[years %in% yy[indices(ev[ev$cut, ])]] <- NA
   out
 }
 
-# 5. OLS change/decade, Sen robustness estimate, approximate HAC interval.
-# Bartlett weights use actual year distances: missing event-years are not compressed.
+# 5. Trend function
 fit_trend <- function(value, lag, minimum_years = min_years) {
   ok <- is.finite(value)
-  x <- years[ok]; v <- value[ok]; n <- length(v)
+  x <- years[ok]
+  v <- value[ok]
+  n <- length(v)
   out <- data.frame(n_years = n,
     first_year = if (n) min(x) else NA_integer_,
     last_year = if (n) max(x) else NA_integer_,
@@ -147,24 +139,26 @@ fit_trend <- function(value, lag, minimum_years = min_years) {
   out
 }
 
-# 6. Annual indices for every cell and definition; exact dates are mandatory.
-annual <- list()
-for (d in cell_series) {
-  d <- d[order(d$date), ]
-  stopifnot(identical(as.numeric(d$date), as.numeric(expected_dates)))
-  q <- daily_thresholds(d)
-  for (p in names(percentiles)) {
-    ev <- find_events(d$tmax > q[, p])
-    for (m in min_days) {
-      info <- data.frame(lon = d$lon[1], lat = d$lat[1], percentile = p, min_days = m)
-      annual[[length(annual) + 1L]] <- cbind(info, annual_metrics(ev, d$date, m))
+# 6. Annual indices
+annual_indices <- function(reference = ref_years) {
+  annual <- list()
+  for (d in cell_series) {
+    d <- d[order(d$date), ]
+    stopifnot(identical(as.numeric(d$date), as.numeric(expected_dates)))
+    q <- daily_thresholds(d, reference)
+    for (p in names(percentiles)) {
+      ev <- find_events(d$tmax > q[, p])
+      for (m in min_days) {
+        info <- data.frame(lon = d$lon[1], lat = d$lat[1], percentile = p, min_days = m)
+        annual[[length(annual) + 1L]] <- cbind(info, annual_metrics(ev, d$date, m))
+      }
     }
   }
+  bind(annual)
 }
-annual_table <- bind(annual)
+annual_table <- annual_indices()
 
-# 7. Available years are primary. Common event-years are a secondary duration check.
-# Mean duration is conditional on events; a no-event year has NA duration, not zero.
+# 7. Trend estimates
 fits <- list()
 for (cell in split(annual_table, annual_table[c("lon", "lat")], drop = TRUE)) {
   definitions <- split(cell, cell[c("percentile", "min_days")], drop = TRUE)
@@ -185,9 +179,6 @@ for (cell in split(annual_table, annual_table[c("lon", "lat")], drop = TRUE)) {
 }
 all_trends <- bind(fits)
 trends <- subset(all_trends, sample == "available" & lag_years == lag_base)
-# One prespecified family: all cells x six definitions x three primary metrics.
-# Unestimable cases remain in the planned family; report valid p-values separately.
-# BY accommodates dependence; inference remains approximate.
 trends$p_adjusted_BY <- p.adjust(trends$p_value, method = "BY", n = nrow(trends))
 trend_checks <- subset(all_trends, sample == "common" | lag_years != lag_base)
 write.csv(annual_table, "results/heatwave_annual.csv", row.names = FALSE, na = "")
@@ -207,7 +198,7 @@ saveRDS(list(area = area, years = years, ref_years = ref_years,
   "results/analysis_settings.rds")
 writeLines(capture.output(sessionInfo()), "results/sessionInfo.txt")
 
-# 8. Identical scales across definitions within each metric; dots use primary BY p.
+# 8. Maps
 prepare_map <- function(d) {
   d$percentile <- factor(d$percentile, levels = names(percentiles))
   d$min_days <- factor(d$min_days, levels = min_days, labels = paste0(min_days, "+ days"))
@@ -230,8 +221,8 @@ plot_trend <- function(metric, title, unit, note) {
     scale_x_continuous(n.breaks = 4) +
     map_coordinates() +
     labs(title = title,
-      subtitle = sprintf("%d-%d | OLS | dots: global BY-adjusted p < %.2f (HAC lag %d)",
-                         min(years), max(years), alpha, lag_base),
+      subtitle = sprintf("%d-%d | reference %d-%d | OLS | BY p < %.2f | HAC lag %d",
+                         min(years), max(years), min(ref_years), max(ref_years), alpha, lag_base),
       caption = paste(note, sprintf("Grey: unavailable slope; at least %d years required.", min_years),
                       "Full native cells, including their outer half-cell edges."),
       x = "Longitude", y = "Latitude") +
@@ -248,7 +239,7 @@ plot_trend("event_days", "Change in annual days in warm spells",
 plot_trend("mean_duration", "Change in mean warm-spell duration",
            "Days/event\nchange per decade", "Conditional on events; event-bearing years vary by definition.")
 
-# 9. Available event-bearing years, including those excluded by min_years.
+# 9. Coverage
 coverage <- prepare_map(trends[trends$metric == "mean_duration", ])
 p_coverage <- ggplot(coverage, aes(lon, lat, fill = n_years)) +
   geom_tile() +
@@ -257,8 +248,8 @@ p_coverage <- ggplot(coverage, aes(lon, lat, fill = n_years)) +
   scale_fill_viridis_c(limits = c(0, length(years)), name = "Years") +
   scale_x_continuous(n.breaks = 4) + map_coordinates() +
   labs(title = "Years available for conditional mean-duration trends",
-    subtitle = sprintf("%d-%d | Cross: fewer than %d years; trend omitted",
-                       min(years), max(years), min_years),
+    subtitle = sprintf("%d-%d | reference %d-%d | Cross: fewer than %d years",
+                       min(years), max(years), min(ref_years), max(ref_years), min_years),
     x = "Longitude", y = "Latitude") +
   theme_minimal(base_size = 11) +
   theme(panel.grid = element_blank(), panel.spacing.x = grid::unit(1, "lines"))
@@ -267,8 +258,3 @@ ggsave("results/mean_duration_coverage.png", p_coverage,
 if (interactive()) print(p_coverage)
 message("Done: ", length(cell_series), " cells; ", nrow(annual_table),
         " annual rows. Tables and maps are in results/.")
-
-# Method references:
-# https://www.climdex.org/learn/indices/ (standard indices differ from our spell lengths)
-# https://search.r-project.org/CRAN/refmans/sandwich/html/NeweyWest.html
-# https://stat.ethz.ch/R-manual/R-patched/library/stats/html/p.adjust.html

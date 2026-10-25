@@ -1,7 +1,0 @@
-R 4.3.3 | sandwich 3.1.0 | digest 0.6.39
-Cross-year counts/days, zero-event duration and record-edge exclusions
-Leap-day exclusion and interpolated threshold
-HAC: 1294 complete series vs sandwich; 506 gapped series vs calendar covariance
-Minimum-year eligibility guard
-Snapshot digest accepts original bytes and rejects modified bytes
-Period/reference design and agreement of the primary case with main trends

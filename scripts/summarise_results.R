@@ -1,4 +1,4 @@
-# Small descriptive tables used in the README; no new statistical tests.
+# Summary tables
 definition_summary <- bind(lapply(split(trends,
   trends[c("percentile", "min_days", "metric")], drop = TRUE), function(d) {
   eligible <- is.finite(d$change_per_decade)
@@ -10,8 +10,6 @@ definition_summary <- bind(lapply(split(trends,
 }))
 write.csv(definition_summary, "results/definition_summary.csv", row.names = FALSE, na = "")
 
-# Recompute BY independently for each bandwidth, retaining the planned family.
-# Restrict to available-year fits so the sampling design is held fixed.
 fit_keys <- c("lon", "lat", "percentile", "min_days", "metric")
 key <- function(d) do.call(paste, c(d[fit_keys], sep = ":"))
 primary_key <- key(trends)

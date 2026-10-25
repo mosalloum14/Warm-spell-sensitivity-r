@@ -1,5 +1,4 @@
-# Authenticate the compressed raw inputs before they are read.
-# Hashes establish byte integrity, not scientific accuracy or origin authenticity.
+# Snapshot hashes
 verify_power_snapshot <- function(root = ".", snapshot_dir = NULL, quiet = FALSE) {
   if (!requireNamespace("digest", quietly = TRUE))
     stop("Install digest first: source('install_dependencies.R').")

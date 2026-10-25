@@ -1,7 +1,4 @@
-# A limited cross-product diagnostic, using archived ERA5-Land via Open-Meteo.
-# Site selection precedes looking at trends: closest POWER center to the rectangle
-# midpoint, cosine-scaled distance, with the southern latitude breaking a tie.
-# Different cell footprints prevent interpreting agreement as local validation.
+# ERA5-Land comparison
 compare_era5_land <- function() {
   folder <- file.path("data", "era5_land_snapshot")
   meta <- jsonlite::fromJSON(file.path(folder, "metadata.json"))
@@ -65,8 +62,9 @@ compare_era5_land <- function() {
     geom_smooth(method = "lm", formula = y ~ x, se = FALSE) +
     facet_wrap(~ metric, scales = "free_y", ncol = 1) +
     labs(title = "One-site POWER / ERA5-Land diagnostic",
-      subtitle = sprintf("Requested POWER center: %.2f E, %.2f N | %d-%d, UTC",
-                         site$lon, site$lat, min(years), max(years)),
+      subtitle = sprintf("%.2f E, %.2f N | %d-%d, UTC | reference %d-%d",
+                         site$lon, site$lat, min(years), max(years),
+                         min(ref_years), max(ref_years)),
       caption = "Nearest cells have different footprints; lines are OLS fits, not accuracy validation.",
       x = "Year", y = NULL, color = NULL) + theme_minimal(base_size = 11)
   ggsave("results/cross_product_comparison.png", p, width = 9, height = 7,
