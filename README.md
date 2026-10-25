@@ -35,6 +35,14 @@ The minimum-year comparison retains 600, 598 and 564 conditional-duration fits u
 
 ![Minimum-year sensitivity](results/minimum_years_comparison.png)
 
+## Conclusion and comparison with the MSc thesis
+
+The results are **qualitatively consistent with the thesis' historical increase in hot days** (1980–2017; pp. 49–51). For 1981–2025, OLS warm-spell frequency slopes are positive in all 600 cell–definition cases; 400 pass the global BY correction. Spatial median changes range from **+0.42 to +2.08 annual events per decade** across definitions. Conditional mean-duration trends are mostly positive, but statistical evidence is less widespread: 60 of 598 eligible cases pass BY.
+
+The thesis describes **daily mean temperature** from [GHCNd station records](https://www.ncei.noaa.gov/products/land-based-station/global-historical-climatology-network-daily) and [Berkeley Earth's station-based gridded reconstruction](https://berkeleyearth.org/methodology/) (pp. 32–33). This project uses **NASA POWER/MERRA-2 daily maximum temperature**, derived from hourly estimates on a 0.5° latitude × 0.625° longitude grid. [Reanalysis combines observations with an atmospheric model](https://power.larc.nasa.gov/docs/methodology/meteorology/); it is not a collection of local station measurements. Differences in variable, reference period (1986–2005 versus 1991–2020), analysis period and spatial treatment prevent direct numerical comparison.
+
+The contribution is a **reproducible, spatially explicit historical extension through 2025**, with calendar-day thresholds and explicit definition and sample-coverage checks. This supports the thesis' general direction of change without verifying its original event counts or future scenario estimates. The original inputs were not reprocessed here. Independent station validation is still needed to assess local temperature accuracy; coarse grids can smooth coastal and mountain extremes. Findings apply to the study rectangle, and mean-duration estimates remain conditional on event-bearing years.
+
 ## Run
 
 Open a terminal in this folder, with R installed:
@@ -107,6 +115,8 @@ Data acknowledgement: **NASA POWER Project**, supported through NASA's Applied S
 
 - [NASA POWER meteorological data and native resolution](https://power.larc.nasa.gov/docs/methodology/meteorology/)
 - [NASA POWER daily API, including UTC requests](https://power.larc.nasa.gov/docs/services/api/temporal/daily/)
+- [NOAA GHCNd station-data overview](https://www.ncei.noaa.gov/products/land-based-station/global-historical-climatology-network-daily)
+- [Berkeley Earth station-based reconstruction methodology](https://berkeleyearth.org/methodology/)
 - [Climdex percentile/spell index definitions](https://www.climdex.org/learn/indices/)
 - [Newey–West estimator documentation](https://search.r-project.org/CRAN/refmans/sandwich/html/NeweyWest.html)
 - [R multiple-testing adjustments](https://stat.ethz.ch/R-manual/R-patched/library/stats/html/p.adjust.html)
