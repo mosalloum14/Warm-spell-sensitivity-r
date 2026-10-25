@@ -1,0 +1,5 @@
+"product","metric","n_years","change_per_decade","sen_per_decade"
+"ERA5-Land","mean_tmax",45,0.603949164656455,0.595890070704802
+"ERA5-Land","n_events_P90_3days",45,1.55204216073781,1.42857142857143
+"POWER","mean_tmax",45,0.428292894084029,0.426269615513945
+"POWER","n_events_P90_3days",45,1.09222661396574,1.11111111111111

@@ -35,19 +35,26 @@ lag_base <- min(length(years) - 2L, floor(4 * (length(years) / 100)^(2 / 9)))
 lag_checks <- sort(unique(pmin(length(years) - 2L,
                               round(lag_base * c(0.5, 1, 2)))))
 
-# 2. Read cached POWER data, the bundled snapshot, or download from the API.
+# 2. Prefer the verified bundled snapshot, then cache, then download from the API.
 cache_dir <- file.path("power_cache", paste(c("T2M_MAX", unname(area),
   paste0(min(years), "0101"), paste0(max(years), "1231"), "UTC"), collapse = "_"))
 dir.create(cache_dir, recursive = TRUE, showWarnings = FALSE)
 dir.create("results", showWarnings = FALSE)
+snapshot_dir <- file.path("data", "power_snapshot", basename(cache_dir))
+snapshot_verified <- FALSE
+if (dir.exists(snapshot_dir) && isTRUE(getOption("warmspell.verify_snapshot", TRUE))) {
+  source("scripts/verify_snapshot.R")
+  verify_power_snapshot(snapshot_dir = snapshot_dir)
+  snapshot_verified <- TRUE
+}
 read_year <- function(y) {
   path <- file.path(cache_dir, paste0(y, ".rds"))
   snapshot <- file.path("data", "power_snapshot", basename(cache_dir), paste0(y, ".json.gz"))
-  if (file.exists(path)) obj <- readRDS(path) else if (file.exists(snapshot)) {
+  if (file.exists(snapshot)) {
     con <- gzfile(snapshot, "rb")
     on.exit(close(con), add = TRUE)
     obj <- jsonlite::fromJSON(con, simplifyVector = FALSE)
-  } else {
+  } else if (file.exists(path)) obj <- readRDS(path) else {
     url <- sprintf(paste0(
       "https://power.larc.nasa.gov/api/temporal/daily/regional?",
       "parameters=T2M_MAX&community=AG&format=JSON&time-standard=UTC",
@@ -194,6 +201,8 @@ saveRDS(list(area = area, years = years, ref_years = ref_years,
   primary_HAC_lag = lag_base, HAC_lag_checks = lag_checks,
   inference = "Approximate OLS/HAC; conditional on fixed thresholds and POWER data",
   multiple_testing = "BY across all planned primary cases, including unestimable cases",
+  snapshot_SHA256_verified = snapshot_verified,
+  input_priority = "bundled snapshot, then local RDS cache, then API",
   planned_tests = nrow(trends), estimated_tests = sum(is.finite(trends$p_value))),
   "results/analysis_settings.rds")
 writeLines(capture.output(sessionInfo()), "results/sessionInfo.txt")
@@ -206,8 +215,8 @@ prepare_map <- function(d) {
 }
 map_coordinates <- function() coord_fixed(
   ratio = 1 / cos(mean(area[c("ymin", "ymax")]) * pi / 180),
-  xlim = unname(area[c("xmin", "xmax")]),
-  ylim = unname(area[c("ymin", "ymax")]), expand = FALSE)
+  xlim = range(daily$lon) + c(-0.3125, 0.3125),
+  ylim = range(daily$lat) + c(-0.25, 0.25), expand = FALSE)
 plot_trend <- function(metric, title, unit, note) {
   d <- prepare_map(trends[trends$metric == metric, ])
   z <- abs(d$change_per_decade[is.finite(d$change_per_decade)])
@@ -224,7 +233,7 @@ plot_trend <- function(metric, title, unit, note) {
       subtitle = sprintf("%d-%d | OLS | dots: global BY-adjusted p < %.2f (HAC lag %d)",
                          min(years), max(years), alpha, lag_base),
       caption = paste(note, sprintf("Grey: unavailable slope; at least %d years required.", min_years),
-                      "Cells clipped to the study rectangle."),
+                      "Full native cells, including their outer half-cell edges."),
       x = "Longitude", y = "Latitude") +
     theme_minimal(base_size = 11) +
     theme(panel.grid = element_blank(), panel.spacing.x = grid::unit(1, "lines"))

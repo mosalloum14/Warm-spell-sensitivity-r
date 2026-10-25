@@ -1,0 +1,10 @@
+"lag_years","metric","planned_cases","estimated_tests","significant_BY","decisions_changed_vs_primary"
+2,"n_events",600,600,414,20
+2,"event_days",600,600,381,26
+2,"mean_duration",600,598,60,12
+3,"n_events",600,600,400,0
+3,"event_days",600,600,355,0
+3,"mean_duration",600,598,60,0
+6,"n_events",600,600,397,23
+6,"event_days",600,600,346,17
+6,"mean_duration",600,598,72,16
